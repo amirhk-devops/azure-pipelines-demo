@@ -1,0 +1,261 @@
+trigger: none
+
+resources:
+  repositories:
+    - repository: Logistics.Inventory
+      type: git
+      name: myorg.myproduct/Logistics.Inventory
+      ref: master
+      trigger:
+        branches:
+          include:
+            - master
+            - Development
+        paths:
+         exclude:
+          - UI5/ClientApp
+          - Database
+
+    - repository: Logistics.Common
+      type: git
+      name: myorg.myproduct/Logistics.Common
+      ref: master
+      trigger:
+        branches:
+          include:
+            - master
+            - Development
+        paths:
+         exclude:
+          - UI5/ClientApp
+          - Database
+
+    - repository: Logistics.Commercial
+      type: git
+      name: myorg.myproduct/Logistics.Commercial
+      ref: master
+      trigger:
+        branches:
+          include:
+            - master
+            - Development
+        paths:
+         exclude:
+          - UI5/ClientApp
+          - Database
+
+
+pool:
+  name: BackendAgentPool
+
+jobs:
+- job: 'BuildBackend'
+  steps:
+    - checkout: Logistics.Inventory
+      condition: eq(variables['BUILD.REPOSITORY.NAME'], 'Logistics.Inventory')
+    
+    - checkout: Logistics.Common
+      condition: eq(variables['BUILD.REPOSITORY.NAME'], 'Logistics.Common')
+
+    - checkout: Logistics.Commercial
+      condition: eq(variables['BUILD.REPOSITORY.NAME'], 'Logistics.Commercial')
+
+
+    - task: PowerShell@2
+      displayName: 'Manage Multiple Repositories'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $RepoName = ""
+          $BuildRepositoryName = $env:BUILD_REPOSITORY_NAME
+          $RepositoryNameFromVar= '$(RepositoryName)'
+          if($BuildRepositoryName -ne "")
+          {
+          $RepoName = $BuildRepositoryName
+          }
+          if($RepositoryNameFromVar -ne "")
+          {
+          $RepoName = $RepositoryNameFromVar
+          }
+          echo "Triggering repository name: $RepoName"
+          foreach($folder in Get-ChildItem)
+          {
+          $folderName = $folder.name
+          if($folderName -ne $RepoName)
+          {
+          Remove-Item -path ".\$folderName" -force -recurse
+          }
+          }
+          Rename-Item -path ".\$RepoName" -NewName "Checkedout$RepoName"
+          Get-ChildItem -Path ".\Checkedout$RepoName" -Recurse | Move-Item -Destination .\
+
+    - task: PowerShell@2
+      displayName: 'Set Branch Name'
+      inputs:
+        targetType: 'inline'
+        script: |
+
+          $BranchName = '$(Build.SourceBranchName)'
+          Write-Host "##vso[task.setvariable variable=myorgBranchName;]$BranchName"
+          
+          
+          Write-Host Set Junction to: $BranchName
+    - task: CmdLine@2
+      displayName: 'Add Licence'
+      inputs:
+        script: 'cmdkey.exe /add:devopsserver.myorg.net /user:myorg\DevOpsUser /pass:$(Password.DevOpsUser)'
+    - task: CmdLine@2
+      displayName: 'Cleanup Folders'
+      inputs:
+        script: |
+          if exist C:\myorg\Web\master (rmdir /q /s C:\myorg\Web\master)
+          if exist C:\myorg\Databases\master (rmdir /q /s C:\myorg\Databases\master)
+          if exist C:\myorg\WindowsServices\master (rmdir /q /s C:\myorg\WindowsServices\master)
+          if exist C:\myorg\Tools\master (rmdir /q /s C:\myorg\Tools\master)
+          if exist C:\myorg\BI\master (rmdir /q /s C:\myorg\BI\master)
+          
+          if exist C:\myorg\Web\Development (rmdir /q /s C:\myorg\Web\Development)
+          if exist C:\myorg\Databases\Development (rmdir /q /s C:\myorg\Databases\Development)
+          if exist C:\myorg\WindowsServices\Development (rmdir /q /s C:\myorg\WindowsServices\Development)
+          if exist C:\myorg\Tools\Development (rmdir /q /s C:\myorg\Tools\Development)
+          if exist C:\myorg\BI\Development (rmdir /q /s C:\myorg\BI\Development)
+          
+          if exist C:\myorg\Web\Release (rmdir /q /s C:\myorg\Web\Release)
+          if exist C:\myorg\Databases\Release (rmdir /q /s C:\myorg\Databases\Release)
+          if exist C:\myorg\WindowsServices\Release (rmdir /q /s C:\myorg\WindowsServices\Release)
+          if exist C:\myorg\Tools\Release (rmdir /q /s C:\myorg\Tools\Release)
+          if exist C:\myorg\BI\Release (rmdir /q /s C:\myorg\BI\Release)
+    - task: CmdLine@2
+      displayName: 'Delete Junction And Other folders'
+      inputs:
+        script: |
+          if exist C:\agent\_work\Web\Junction (rmdir /s /q C:\agent\_work\Web\Junction)
+          if exist C:\agent\_work\Databases\Junction (rmdir /s /q C:\agent\_work\Databases\Junction)
+          if exist C:\agent\_work\WindowsServices\Junction (rmdir /s /q C:\agent\_work\WindowsServices\Junction)
+          if exist C:\agent\_work\Tools\Junction (rmdir /s /q C:\agent\_work\Tools\Junction)
+          if exist C:\agent\_work\BI\Junction (rmdir /s /q C:\agent\_work\BI\Junction)
+          
+          if exist C:\myorg\Web\Junction (rmdir /s /q C:\myorg\Web\Junction)
+          if exist C:\myorg\Databases\Junction (rmdir /s /q C:\myorg\Databases\Junction)
+          if exist C:\myorg\WindowsServices\Junction (rmdir /s /q C:\myorg\WindowsServices\Junction)
+          if exist C:\myorg\Tools\Junction (rmdir /s /q C:\myorg\Tools\Junction)
+          if exist C:\myorg\BI\Junction (rmdir /s /q C:\myorg\BI\Junction)
+          if exist C:\myorg\TemporaryFiles (rmdir /s /q C:\myorg\TemporaryFiles)
+          
+          if exist C:\myorg\Web\$(myorgBranchName) (rmdir /q /s C:\myorg\Web\$(myorgBranchName))
+          if exist C:\myorg\Databases\$(myorgBranchName) (rmdir /q /s C:\myorg\Databases\$(myorgBranchName))
+          if exist C:\myorg\WindowsServices\$(myorgBranchName) (rmdir /q /s C:\myorg\WindowsServices\$(myorgBranchName))
+          if exist C:\myorg\Tools\$(myorgBranchName) (rmdir /q /s C:\myorg\Tools\$(myorgBranchName))
+          if exist C:\myorg\BI\$(myorgBranchName) (rmdir /q /s C:\myorg\BI\$(myorgBranchName))
+          
+          if not exist C:\agent\_work\Web mkdir C:\agent\_work\Web
+          if not exist C:\agent\_work\Databases mkdir C:\agent\_work\Databases
+          if not exist C:\agent\_work\WindowsServices mkdir C:\agent\_work\WindowsServices
+          if not exist C:\agent\_work\Tools mkdir C:\agent\_work\Tools
+          if not exist C:\agent\_work\BI mkdir C:\agent\_work\BI
+    - task: CmdLine@2
+      displayName: 'Set Junction to ...'
+      inputs:
+        script: |
+          echo Set Junction to: $(myorgBranchName)
+          if exist C:\agent\_work\Web\Junction (rmdir /s /q C:\agent\_work\Web\Junction)
+          if exist C:\agent\_work\Databases\Junction (rmdir /s /q C:\agent\_work\Databases\Junction)
+          if exist C:\agent\_work\WindowsServices\Junction (rmdir /s /q C:\agent\_work\WindowsServices\Junction)
+          if exist C:\agent\_work\Tools\Junction (rmdir /s /q C:\agent\_work\Tools\Junction)
+          if exist C:\agent\_work\BI\Junction (rmdir /s /q C:\agent\_work\BI\Junction)
+          
+          if exist C:\myorg\Web\Junction (rmdir /s /q C:\myorg\Web\Junction)
+          if exist C:\myorg\Databases\Junction (rmdir /s /q C:\myorg\Databases\Junction)
+          if exist C:\myorg\WindowsServices\Junction (rmdir /s /q C:\myorg\WindowsServices\Junction)
+          if exist C:\myorg\Tools\Junction (rmdir /s /q C:\myorg\Tools\Junction)
+          if exist C:\myorg\BI\Junction (rmdir /s /q C:\myorg\BI\Junction)
+          if exist C:\myorg\TemporaryFiles (rmdir /s /q C:\myorg\TemporaryFiles)
+          
+          if exist C:\myorg\Web\$(myorgBranchName) (rmdir /q /s C:\myorg\Web\$(myorgBranchName))
+          if exist C:\myorg\Databases\$(myorgBranchName) (rmdir /q /s C:\myorg\Databases\$(myorgBranchName))
+          if exist C:\myorg\WindowsServices\$(myorgBranchName) (rmdir /q /s C:\myorg\WindowsServices\$(myorgBranchName))
+          if exist C:\myorg\Tools\$(myorgBranchName) (rmdir /q /s C:\myorg\Tools\$(myorgBranchName))
+          if exist C:\myorg\BI\$(myorgBranchName) (rmdir /q /s C:\myorg\BI\$(myorgBranchName))
+          
+          mklink /d C:\agent\_work\Web\Junction C:\myproductArtifacts\Web\$(myorgBranchName)
+          mklink /d C:\agent\_work\Databases\Junction C:\myproductArtifacts\Databases\$(myorgBranchName)
+          mklink /d C:\agent\_work\WindowsServices\Junction C:\myproductArtifacts\WindowsServices\$(myorgBranchName)
+          mklink /d C:\agent\_work\Tools\Junction C:\myproductArtifacts\Tools\$(myorgBranchName)
+          mklink /d C:\agent\_work\BI\Junction C:\myproductArtifacts\BI\$(myorgBranchName)
+          mklink /d C:\myorg\TemporaryFiles C:\myproductArtifacts\TemporaryFiles
+          
+          if not exist C:\myorg\Web\$(myorgBranchName) mkdir C:\myorg\Web\$(myorgBranchName)
+          if not exist C:\myorg\Databases\$(myorgBranchName) mkdir C:\myorg\Databases\$(myorgBranchName)
+          if not exist C:\myorg\WindowsServices\$(myorgBranchName) mkdir C:\myorg\WindowsServices\$(myorgBranchName)
+          if not exist C:\myorg\Tools\$(myorgBranchName) mkdir C:\myorg\Tools\$(myorgBranchName)
+          if not exist C:\myorg\BI\$(myorgBranchName) mkdir C:\myorg\BI\$(myorgBranchName)
+          
+          mklink /j C:\myorg\Web\Junction C:\myorg\Web\$(myorgBranchName)
+          mklink /j C:\myorg\Databases\Junction C:\myorg\Databases\$(myorgBranchName)
+          mklink /j C:\myorg\WindowsServices\Junction C:\myorg\WindowsServices\$(myorgBranchName)
+          mklink /j C:\myorg\Tools\Junction C:\myorg\Tools\$(myorgBranchName)
+          mklink /j C:\myorg\BI\Junction C:\myorg\BI\$(myorgBranchName)
+
+    - task: CmdLine@2
+      displayName: 'Nuget Restore'
+      inputs:
+        script: 'nuget restore $(Project.Type) -Verbosity Detailed -NonInteractive -ConfigFile C:\NuGet\NuGet.Config'
+
+    - task: CmdLine@2
+      displayName: 'Dotnet Restore'
+      inputs:
+        script: 'dotnet restore $(Project.Type) --configfile C:\NuGet\NuGet.Config'
+
+    - task: MSBuild@1
+      inputs:
+        solution: '$(Project.Type)'
+
+    - task: PowerShell@2
+      displayName: 'Copy To Devops-Server (master)'
+      inputs:
+        targetType: 'inline'
+        script: |
+          robocopy "C:\myorg\Web\Junction" "C:\myproductArtifacts\Web\master" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\Databases\Junction" "C:\myproductArtifacts\Databases\master" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\WindowsServices\Junction" "C:\myproductArtifacts\WindowsServices\master" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\Tools\Junction" "C:\myproductArtifacts\Tools\master" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\BI\Junction" "C:\myproductArtifacts\BI\master" /S /R:5 /W:5 /NP /V /MT:16
+        ignoreLASTEXITCODE: true
+      condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'master'))
+
+    - task: PowerShell@2
+      displayName: 'Copy To Devops-Server (Development)'
+      inputs:
+        targetType: 'inline'
+        script: |
+          robocopy "C:\myorg\Web\Junction" "C:\myproductArtifacts\Web\Development" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\Databases\Junction" "C:\myproductArtifacts\Databases\Development" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\WindowsServices\Junction" "C:\myproductArtifacts\WindowsServices\Development" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\Tools\Junction" "C:\myproductArtifacts\Tools\Development" /S /R:5 /W:5 /NP /V /MT:16
+          
+          robocopy "C:\myorg\BI\Junction" "C:\myproductArtifacts\BI\Development" /S /R:5 /W:5 /NP /V /MT:16
+        ignoreLASTEXITCODE: true
+      condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'Development'))
+
+    - task: PowerShell@2
+      displayName: 'Clean Source Folders'
+      continueOnError: true
+      inputs:
+        targetType: 'inline'
+        script: |
+          $SourcesDirectory = '$(Build.SourcesDirectory)'
+          echo $SourcesDirectory
+          $WorkFolder = '$(Agent.WorkFolder)'
+          echo $WorkFolder 
+          $relativePath = $SourcesDirectory.Substring($WorkFolder.Length)
+          $RepoDirectory = ($relativePath -replace '\\s$', '').TrimStart('\')
+          $RepoDirectory = $RepoDirectory -split '\\' | Select-Object -Last 1
+          echo $RepoDirectory 
+          Get-ChildItem -Path $WorkFolder -Directory | Where-Object { $_.Name -match '^\d+$' -and $_.Name -ne $RepoDirectory } | Remove-Item -Recurse -Force

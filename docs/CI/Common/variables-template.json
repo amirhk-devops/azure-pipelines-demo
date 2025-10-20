@@ -1,0 +1,7 @@
+{
+  "Env": "Dev",
+  "DotNetSDK": "8.0",
+  "ConnectionStrings": {
+    "Default": "Server=.;Database=Demo;Trusted_Connection=True;"
+  }
+}
